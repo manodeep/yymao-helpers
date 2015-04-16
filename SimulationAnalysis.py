@@ -3,6 +3,8 @@ __all__ = ['getMainBranch', 'a2z', 'z2a', 'readHlist', 'SimulationAnalysis', \
 import os
 import re
 import math
+import gzip
+from urllib import urlretrieve
 from collections import deque
 import numpy as np
 
@@ -229,14 +231,14 @@ class TreesDir(BaseDirectory):
         return p.pack(X)
 
 
-def readHlist(hlist, fields=None, buffering=1e8):
+def readHlist(hlist, fields=None, buffering=100000000):
     """
     Read the given fields of a hlist file (also works for tree_*.dat and out_*.list) as a numpy record array.
 
     Parameters
     ----------
-    hlist : str
-        The path to the file.
+    hlist : str or file obj
+        The path to the file (can be an URL) or a file object.
     fields : str, int, array_like, optional
         The desired fields. It can be a list of string or int. If fields is None (default), return all the fields listed in the header. 
 
@@ -255,7 +257,16 @@ def readHlist(hlist, fields=None, buffering=1e8):
     >>> mass_of_subs_of_largest_halo = h['mvir'][(h['upid'] == largest_halo_id)]
 
     """
-    with open(hlist, 'r', int(buffering)) as f:
+    if hasattr(hlist, 'read'):
+        f = hlist
+    else:
+        if re.match(r'(s?ftp|https?)://', hlist, re.I):
+            hlist = urlretrieve(hlist)[0]
+        if hlist.endswith('.gz'):
+            f = gzip.open(hlist, 'r')
+        else:
+            f = open(hlist, 'r', int(buffering))
+    try:
         l = f.next()
         header = l[1:].split()
         header = [re.sub('\(\d+\)$', '', s) for s in header]
@@ -265,6 +276,9 @@ def readHlist(hlist, fields=None, buffering=1e8):
         X = [p.parse_line(l)]
         for l in f:
             X.append(p.parse_line(l))
+    finally:
+        if not hasattr(hlist, 'read'):
+            f.close()
     return p.pack(X)
 
 def readHlistToSqlite3(db, table_name, hlist, fields=None, unique_id=True):
