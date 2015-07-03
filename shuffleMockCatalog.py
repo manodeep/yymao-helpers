@@ -13,10 +13,13 @@ def _iter_plateau_in_sorted_array(a):
     yield i, len(a)
 
 def _iter_indices_in_bins(bins, a):
-    k = np.searchsorted(bins, a)
-    s = k.argsort()
-    for i, j in _iter_plateau_in_sorted_array(k[s]):
+    s = a.argsort()
+    k = np.searchsorted(a, bins, 'right', sorter=s)
+    i = 0
+    for j in k:
         yield s[i:j]
+        i = j
+    yield s[i:]
 
 _axes = list('xyz')
 
@@ -79,6 +82,9 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bins=None, proxy='mvir', \
 
     # loop of bins of proxy (e.g. mvir)
     for i, indices in enumerate(_iter_indices_in_bins(bins, hosts[proxy])):
+        if not len(indices):
+            continue
+
         if i==0 or i==len(bins):
             if (hosts['mock_idx'][indices] > -1).any() or \
                     any(((subs['mock_idx'][slice(*subs_idx[j])] > -1).any() \
