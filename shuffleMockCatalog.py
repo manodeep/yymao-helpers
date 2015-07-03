@@ -33,7 +33,7 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bins=None, proxy='mvir', \
 
     # check all mock_ids are in halo_catalog
     s = halo_catalog.argsort(order='id')
-    idx = np.searchsorted(halos['id'], mock_ids, sorter=s)
+    idx = np.searchsorted(halo_catalog['id'], mock_ids, sorter=s)
     try:
         idx = s[idx]
     except IndexError:
