@@ -30,7 +30,7 @@ def _random_rotation_matrix(n=3):
 _axes = list('xyz')
 
 def _get_xyz(a, ax_type=float):
-    return np.fromiter((a[ax] for ax in _axe), ax_type, len(_axes))
+    return np.fromiter((a[ax] for ax in _axes), ax_type, len(_axes))
 
 def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
         proxy='mvir', box_size=None, apply_rsd=False,
