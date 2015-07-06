@@ -21,10 +21,21 @@ def _iter_indices_in_bins(bins, a):
         i = j
     yield s[i:]
 
+def _random_rotation_matrix(n=3):
+    A = np.linalg.qr(np.random.randn(n,n))[0]
+    if np.linalg.det(A) > 0:
+        return A
+    return _random_rotation_matrix(n)
+
 _axes = list('xyz')
 
+def _view_xyz(a, ax_type=float):
+    return a[_axes].view(ax_type).reshape(-1, 3)
+
 def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
-        proxy='mvir', box_size=None, apply_rsd=False):
+        proxy='mvir', box_size=None, apply_rsd=False,
+        shuffle_centrals=True, shuffle_satellites=True, rotate_satellites=False,
+        return_structured_array=False):
     """
     Shuffle a mock catalog according to Zentner et al. (2014) [arXiv:1311.1818]
 
@@ -48,11 +59,22 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
         The side length of the box. Should be in the same unit as x, y, z.
     apply_rsd : bool, optional
         Whether or not to apply redshift space distortions on the z-axis.
+        (Default is False)
+    shuffle_centrals : bool, optional
+        Whether or not to shuffle central galaxies (Default is True)
+    shuffle_satellites : bool, optional
+        Whether or not to shuffle satellite galaxies (Default is True)
+    rotate_satellites : bool, optional
+        Whether or not to apply a random rotation to satellite galaxies 
+        (Default is False)
+    return_structured_array : bool, optional
+        Whether to return a structured array that contains x, y, z
+        or just a n-by-3 float array.
 
     Returns
     -------
     pos : array_like
-        A 1-d strutured array that contains x, y, z of the shuffled positions.
+        A ndarray that contains x, y, z of the shuffled positions.
     """
 
     # check necessary fields in halo_catalog
@@ -62,6 +84,11 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
     if not all((f in halo_catalog.dtype.names for f in fields)):
         raise ValueError('`halo_catalog` should have the following fields: '+ \
                 ', '.join(fields))
+
+    # check dtype
+    ax_type = halo_catalog['x'].dtype.type
+    if any((halo_catalog[ax].dtype.type != ax_type for ax in 'yz')):
+        raise ValueError('The types of fields x, y, z in `halo_catalog` must all be the same.')
 
     # check all mock_ids are in halo_catalog
     s = halo_catalog.argsort(order='id')
@@ -122,7 +149,7 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
         bins = np.logspace(mi, ma, bins+1)
 
     # create the array for storing results
-    pos = np.empty(len(mock_ids), dtype=np.dtype(zip(_axes, [float]*3)))
+    pos = np.empty((len(mock_ids), 3), ax_type)
     pos.fill(np.nan)
 
     # loop of bins of proxy (e.g. mvir)
@@ -137,44 +164,64 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
                 warnings.warn('Some halos associdated with the mock catalog are outside the bin range.', RuntimeWarning)
             continue
 
-        # swap satellites
-        choices = indices.copy()
-        n_choices = len(choices)
+        # shuffle satellites
+        if shuffle_satellites:
+            choices = indices.copy()
+            n_choices = len(choices)
         for j in indices:
             subs_this = subs[slice(*subs_idx[j])]
             subs_this = subs_this[subs_this['mock_idx'] > -1]
             if not len(subs_this):
                 continue
-            # find new host
-            k = np.random.randint(n_choices)
-            n_choices -= 1
-            host, host_new = hosts[[j, choices[k]]]
-            choices[k] = choices[n_choices]
-            # actually do the swapping
             mock_idx_this = subs_this['mock_idx']
-            pos[mock_idx_this] = subs_this[_axes]
-            for ax in _axes:
-                pos[ax][mock_idx_this] += (host_new[ax] - host[ax])
-            if apply_rsd:
-                pos['z'][mock_idx_this] += (subs_this['vz'] \
-                        + host_new['vz'] - host['vz'])/100.0
-
-        # swap hosts
-        mock_idx_this = hosts['mock_idx'][indices]
-        mock_idx_this = mock_idx_this[mock_idx_this > -1]
-        if len(mock_idx_this):
+            pos[mock_idx_this] = _view_xyz(subs_this)
+            # find new host
+            if shuffle_satellites:
+                k = np.random.randint(n_choices)
+                n_choices -= 1
+                host, host_new = hosts[[j, choices[k]]]
+                choices[k] = choices[n_choices]
+                pos[mock_idx_this] -= _view_xyz(host)
+                if rotate_satellites:
+                    pos[mock_idx_this] = np.dot(pos[mock_idx_this], \
+                            _random_rotation_matrix())
+                pos[mock_idx_this] += _view_xyz(host_new)
+                if apply_rsd:
+                    pos[mock_idx_this, 2] += (subs_this['vz'] \
+                            + host_new['vz'] - host['vz'])/100.0
+            else:
+                if rotate_satellites:
+                    host = hosts[j]
+                    pos[mock_idx_this] -= _view_xyz(host)
+                    pos[mock_idx_this] = np.dot(pos[mock_idx_this], \
+                            _random_rotation_matrix())
+                    pos[mock_idx_this] += _view_xyz(host)
+                if apply_rsd:
+                    pos[mock_idx_this, 2] += subs_this['vz']/100.0
+            
+        # shuffle hosts
+        mock_flag = (hosts['mock_idx'][indices] > -1)
+        if not mock_flag.any():
+            continue
+        if shuffle_centrals:
+            mock_idx_this = hosts['mock_idx'][mock_flag]
             k = np.random.choice(indices, len(mock_idx_this), replace=False)
-            pos[mock_idx_this] = hosts[_axes][k]
-            if apply_rsd:
-                pos['z'][mock_idx_this] += hosts['vz'][k]/100.0
+        else:
+            k = indices[mock_flag]
+        pos[mock_idx_this] = _view_xyz(hosts[k])
+        if apply_rsd:
+            pos[mock_idx_this, 2] += hosts['vz'][k]/100.0
 
-    if any((np.isnan(pos[ax]).any() for ax in _axes)):
+    # sanity check
+    if np.isnan(pos).any():
         warnings.warn('Some galaxies in the mock catalog have not been assigned a new position. Maybe the corresponding halo is outside the bin range.', RuntimeWarning)
 
     # wrap box
     if box_size is not None:
-        for ax in _axes:
-            np.remainder(pos[ax], box_size, pos[ax])
+        pos = np.remainder(pos, box_size, pos)
+
+    if return_structured_array:
+        pos = pos.view(np.dtype(zip(_axes, [ax_type]*3)))
 
     return pos
 
