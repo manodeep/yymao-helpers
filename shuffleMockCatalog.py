@@ -23,9 +23,38 @@ def _iter_indices_in_bins(bins, a):
 
 _axes = list('xyz')
 
-def shuffleMockCatalog(mock_ids, halo_catalog, bins=None, proxy='mvir', \
-        box_size=None, apply_rsd=False):
-    
+def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
+        proxy='mvir', box_size=None, apply_rsd=False):
+    """
+    Shuffle a mock catalog according to Zentner et al. (2014) [arXiv:1311.1818]
+
+    Parameters
+    ----------
+    mock_ids : array_like
+        Should be a 1-d array of int which contains the corresponding halo IDs
+        for the galaxies in the mock catalog to be shuffled.
+    halo_catalog : array_like
+        Should be a 1-d structrued array which has the following fields:
+        id, upid, x, y, z, vz (if `apply_rsd` it True), and the proxy.
+    bin_width : float or None, optional
+        The width of the bin, in dex.
+    bins : int, array_like, or None, optional
+        If an integer is provided, it is interpreted as the number of bins.
+        If an array is provided, it is interpreted as the edges of the bins.
+        The parameter _overwrites_ `bin_width`.
+    proxy : string, optional
+        The proxy to bin on. Must be present in the fields of `halo_catalog`.
+    box_size : float or None, optional
+        The side length of the box. Should be in the same unit as x, y, z.
+    apply_rsd : bool, optional
+        Whether or not to apply redshift space distortions on the z-axis.
+
+    Returns
+    -------
+    pos : array_like
+        A 1-d strutured array that contains x, y, z of the shuffled positions.
+    """
+
     # check necessary fields in halo_catalog
     fields = ['id', 'upid', proxy] + _axes
     if apply_rsd:
@@ -67,18 +96,34 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bins=None, proxy='mvir', \
     del idx, host_ids
 
     # check bins
+    try:
+        bin_width = float(bin_width)
+    except (ValueError, TypeError):
+        bin_width = None
+    else:
+        if bin_width <= 0:
+            bin_width = None
+    if bin_width is None:
+        bin_width = 0.1
+    
+    mi = np.log10(hosts[proxy].min()*0.99999)
+    ma = np.log10(hosts[proxy].max())
+
     if bins is None:
-        bins = 50
+        bins = int(np.ceil((ma-mi)/bin_width))
+        mi = ma - bin_width*bins
     try:
         bins = int(bins)
     except (ValueError, TypeError):
         bins = np.asarray(bins)
+        if len(bins) < 2 or (bins[1:]<bins[:-1]).any():
+            raise ValueError('Please specify a valid `bin` parameter.')
     else:
-        bins = np.logspace(np.log10(hosts[proxy].min()*0.9999), \
-                np.log10(hosts[proxy].max()), bins+1)
+        bins = np.logspace(mi, ma, bins+1)
 
     # create the array for storing results
     pos = np.empty(len(mock_ids), dtype=np.dtype(zip(_axes, [float]*3)))
+    pos.fill(np.nan)
 
     # loop of bins of proxy (e.g. mvir)
     for i, indices in enumerate(_iter_indices_in_bins(bins, hosts[proxy])):
@@ -123,9 +168,13 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bins=None, proxy='mvir', \
             if apply_rsd:
                 pos['z'][mock_idx_this] += hosts['vz'][k]/100.0
 
+    if np.isnan(pos).any():
+        warnings.warn('Some galaxies in the mock catalog have not been assigned a new position. Maybe the corresponding halo is outside the bin range.', RuntimeWarning)
+
     # wrap box
     if box_size is not None:
         for ax in _axes:
             np.remainder(pos[ax], box_size, pos[ax])
 
     return pos
+
