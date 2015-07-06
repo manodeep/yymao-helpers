@@ -168,7 +168,7 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
             if apply_rsd:
                 pos['z'][mock_idx_this] += hosts['vz'][k]/100.0
 
-    if np.isnan(pos).any():
+    if any((np.isnan(pos[ax]).any() for ax in _axes)):
         warnings.warn('Some galaxies in the mock catalog have not been assigned a new position. Maybe the corresponding halo is outside the bin range.', RuntimeWarning)
 
     # wrap box
