@@ -29,8 +29,8 @@ def _random_rotation_matrix(n=3):
 
 _axes = list('xyz')
 
-def _view_xyz(a, ax_type=float):
-    return a[_axes].view(ax_type).reshape(-1, 3)
+def _get_xyz(a, ax_type=float):
+    return np.fromiter((a[ax] for ax in _axe), ax_type, len(_axes))
 
 def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
         proxy='mvir', box_size=None, apply_rsd=False,
@@ -174,28 +174,28 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
             if not len(subs_this):
                 continue
             mock_idx_this = subs_this['mock_idx']
-            pos[mock_idx_this] = _view_xyz(subs_this)
+            pos[mock_idx_this] = subs_this[_axes].view(ax_type).reshape((-1, 3))
             # find new host
             if shuffle_satellites:
                 k = np.random.randint(n_choices)
                 n_choices -= 1
                 host, host_new = hosts[[j, choices[k]]]
                 choices[k] = choices[n_choices]
-                pos[mock_idx_this] -= _view_xyz(host)
+                pos[mock_idx_this] -= _get_xyz(host, ax_type)
                 if rotate_satellites:
                     pos[mock_idx_this] = np.dot(pos[mock_idx_this], \
                             _random_rotation_matrix())
-                pos[mock_idx_this] += _view_xyz(host_new)
+                pos[mock_idx_this] += _get_xyz(host_new, ax_type)
                 if apply_rsd:
                     pos[mock_idx_this, 2] += (subs_this['vz'] \
                             + host_new['vz'] - host['vz'])/100.0
             else:
                 if rotate_satellites:
-                    host = hosts[j]
-                    pos[mock_idx_this] -= _view_xyz(host)
+                    host_pos = _get_xyz(hosts[j], ax_type)
+                    pos[mock_idx_this] -= host_pos
                     pos[mock_idx_this] = np.dot(pos[mock_idx_this], \
                             _random_rotation_matrix())
-                    pos[mock_idx_this] += _view_xyz(host)
+                    pos[mock_idx_this] += host_pos
                 if apply_rsd:
                     pos[mock_idx_this, 2] += subs_this['vz']/100.0
             
@@ -208,7 +208,7 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
             k = np.random.choice(indices, len(mock_idx_this), replace=False)
         else:
             k = indices[mock_flag]
-        pos[mock_idx_this] = _view_xyz(hosts[k])
+        pos[mock_idx_this] = hosts[_axes][k].view(ax_type).reshape((-1, 3))
         if apply_rsd:
             pos[mock_idx_this, 2] += hosts['vz'][k]/100.0
 
