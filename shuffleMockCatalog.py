@@ -203,11 +203,9 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
         mock_flag = (hosts['mock_idx'][indices] > -1)
         if not mock_flag.any():
             continue
-        if shuffle_centrals:
-            mock_idx_this = hosts['mock_idx'][mock_flag]
-            k = np.random.choice(indices, len(mock_idx_this), replace=False)
-        else:
-            k = indices[mock_flag]
+        mock_idx_this = hosts['mock_idx'][mock_flag]
+        k = np.random.choice(indices, len(mock_idx_this), replace=False) \
+                if shuffle_centrals else indices[mock_flag]
         pos[mock_idx_this] = hosts[_axes][k].view(ax_type).reshape((-1, 3))
         if apply_rsd:
             pos[mock_idx_this, 2] += hosts['vz'][k]/100.0
