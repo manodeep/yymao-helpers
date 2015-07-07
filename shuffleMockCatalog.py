@@ -31,7 +31,8 @@ def _random_rotation_matrix(n=3):
 _axes = list('xyz')
 
 def _get_xyz(a, ax_type=float):
-    return np.fromiter((a[ax] for ax in _axes), ax_type, len(_axes))
+    return np.fromiter((a[ax] for ax in _axes), ax_type, 3)
+
 
 def generate_upid(pid, id, recursive=True):
     """
@@ -227,7 +228,7 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
             if not len(subs_this):
                 continue
             mock_idx_this = subs_this['mock_idx']
-            pos[mock_idx_this] = subs_this[_axes].view(ax_type).reshape((-1, 3))
+            pos[mock_idx_this] = subs_this[_axes].view((ax_type,3))
             if shuffle_satellites:
                 k = choices.pop(np.random.randint(len(choices)))
                 pos[mock_idx_this] -= _get_xyz(hosts[j], ax_type)
@@ -255,8 +256,7 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
         mock_idx_this = hosts['mock_idx'][has_mock]
         if shuffle_centrals:
             has_mock = np.random.choice(indices, len(has_mock), False)
-        pos[mock_idx_this] \
-                = hosts[_axes][has_mock].view(ax_type).reshape((-1, 3))
+        pos[mock_idx_this] = hosts[_axes][has_mock].view((ax_type,3))
         if apply_rsd:
             pos[mock_idx_this,2] += hosts['vz'][has_mock]/100.0
 
