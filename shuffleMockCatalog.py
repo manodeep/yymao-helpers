@@ -1,5 +1,6 @@
-__all__ = ['shuffleMockCatalog']
+__all__ = ['shuffleMockCatalog', 'generate_upid']
 import warnings
+from itertools import izip
 import numpy as np
 from numpy.lib.recfunctions import rename_fields
 
@@ -31,6 +32,54 @@ _axes = list('xyz')
 
 def _get_xyz(a, ax_type=float):
     return np.fromiter((a[ax] for ax in _axes), ax_type, len(_axes))
+
+def generate_upid(pid, id, recursive=True):
+    """
+    To generate (or to fix) the upid of a halo catalog.
+
+    Parameters
+    ----------
+    pid : array_like
+        An ndarray of integer that contains the parent IDs of each halo.
+    id : array_like
+        An ndarray of integer that contains the halo IDs.
+    recursive : bool, optional
+        Whether or not to run this function recursively. Default is True.
+
+    Returns
+    -------
+    upid : array_like
+        The ultimate parent IDs. 
+
+    Examples
+    --------
+    >>> halos['upid'] = generate_upid(halos['pid'], halos['id'])
+    
+    """
+    pid = np.asanyarray(pid)
+    id = np.asanyarray(id)
+    s = pid.argsort()
+    idx = np.fromiter(_iter_plateau_in_sorted_array(pid[s]), \
+            np.dtype([('start', int), ('stop', int)]))
+    unique_pid = pid[s[idx['start']]]
+    if unique_pid[0] == -1:
+        unique_pid = unique_pid[1:]
+        idx = idx[1:]
+    host_flag = (pid == -1)
+    not_found = np.where(np.in1d(unique_pid, id[host_flag], True, True))[0]
+    if not len(not_found):
+        return pid
+    sub_flag = np.where(~host_flag)[0]
+    found = sub_flag[np.in1d(id[sub_flag], unique_pid[not_found], True)]
+    found = found[id[found].argsort()]
+    assert (id[found] == unique_pid[not_found]).all()
+    del host_flag, sub_flag, unique_pid
+    pid_old = pid.copy()
+    for i, j in izip(found, not_found):
+        pid[s[slice(*idx[j])]] = pid_old[i]
+    del pid_old, idx, s, found, not_found
+    return generate_upid(pid, id, True) if recursive else pid
+
 
 def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
         proxy='mvir', box_size=None, apply_rsd=False,
@@ -88,10 +137,11 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
     # check dtype
     ax_type = halo_catalog['x'].dtype.type
     if any((halo_catalog[ax].dtype.type != ax_type for ax in 'yz')):
-        raise ValueError('The types of fields x, y, z in `halo_catalog` must all be the same.')
+        raise ValueError('The types of fields x, y, z in `halo_catalog` ' \
+                'must all be the same.')
 
     # check all mock_ids are in halo_catalog
-    s = halo_catalog.argsort(order='id')
+    s = halo_catalog['id'].argsort()
     idx = np.searchsorted(halo_catalog['id'], mock_ids, sorter=s)
     try:
         idx = s[idx]
@@ -110,6 +160,7 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
     hosts['mock_idx'] = mock_idx[host_flag]
     subs = rename_fields(halo_catalog[~host_flag], {'id':'mock_idx'})
     subs['mock_idx'] = mock_idx[~host_flag]
+    subs = subs[subs['mock_idx'] > -1]
     del host_flag, mock_idx
 
     # group subhalos
@@ -117,9 +168,12 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
     idx = np.fromiter(_iter_plateau_in_sorted_array(subs['upid']), \
             np.dtype([('start', int), ('stop', int)]))
     host_ids = subs['upid'][idx['start']]
+    if not np.in1d(host_ids, hosts['id'], True).all():
+        raise ValueError('Some subhalos associdated with the mock galaxies ' \
+                'have no parent halos in `halo_catalog`. Consider using ' \
+                '`generate_upid` to fix this.')
     subs_idx = np.zeros(len(hosts), dtype=idx.dtype)
-    subs_idx[np.in1d(hosts['id'], host_ids, True)] \
-            = idx[np.in1d(host_ids, hosts['id'], True)]
+    subs_idx[np.in1d(hosts['id'], host_ids, True)] = idx
     del idx, host_ids
 
     # check bins
@@ -159,36 +213,31 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
 
         if i==0 or i==len(bins):
             if (hosts['mock_idx'][indices] > -1).any() or \
-                    any(((subs['mock_idx'][slice(*subs_idx[j])] > -1).any() \
+                    any((subs_idx['start'][j] < subs_idx['stop'][j] \
                     for j in indices)):
-                warnings.warn('Some halos associdated with the mock catalog are outside the bin range.', RuntimeWarning)
+                warnings.warn('Some halos associdated with the mock catalog ' \
+                        'are outside the bin range.', RuntimeWarning)
             continue
 
         # shuffle satellites
         if shuffle_satellites:
-            choices = indices.copy()
-            n_choices = len(choices)
+            choices = indices.tolist()
         for j in indices:
             subs_this = subs[slice(*subs_idx[j])]
-            subs_this = subs_this[subs_this['mock_idx'] > -1]
             if not len(subs_this):
                 continue
             mock_idx_this = subs_this['mock_idx']
             pos[mock_idx_this] = subs_this[_axes].view(ax_type).reshape((-1, 3))
-            # find new host
             if shuffle_satellites:
-                k = np.random.randint(n_choices)
-                n_choices -= 1
-                host, host_new = hosts[[j, choices[k]]]
-                choices[k] = choices[n_choices]
-                pos[mock_idx_this] -= _get_xyz(host, ax_type)
+                k = choices.pop(np.random.randint(len(choices)))
+                pos[mock_idx_this] -= _get_xyz(hosts[j], ax_type)
                 if rotate_satellites:
                     pos[mock_idx_this] = np.dot(pos[mock_idx_this], \
                             _random_rotation_matrix())
-                pos[mock_idx_this] += _get_xyz(host_new, ax_type)
+                pos[mock_idx_this] += _get_xyz(hosts[k], ax_type)
                 if apply_rsd:
                     pos[mock_idx_this,2] += (subs_this['vz'] \
-                            + host_new['vz'] - host['vz'])/100.0
+                            + hosts['vz'][k] - hosts['vz'][j])/100.0
             else:
                 if rotate_satellites:
                     host_pos = _get_xyz(hosts[j], ax_type)
@@ -200,20 +249,22 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
                     pos[mock_idx_this,2] += subs_this['vz']/100.0
             
         # shuffle hosts
-        mock_flag = (hosts['mock_idx'][indices] > -1)
-        if not mock_flag.any():
+        has_mock = indices[hosts['mock_idx'][indices] > -1]
+        if not len(has_mock):
             continue
-        mock_idx_this = hosts['mock_idx'][mock_flag]
+        mock_idx_this = hosts['mock_idx'][has_mock]
         if shuffle_centrals:
-            np.random.shuffle(mock_flag)
-        k = indices[mock_flag]
-        pos[mock_idx_this] = hosts[_axes][k].view(ax_type).reshape((-1, 3))
+            has_mock = np.random.choice(indices, len(has_mock), False)
+        pos[mock_idx_this] \
+                = hosts[_axes][has_mock].view(ax_type).reshape((-1, 3))
         if apply_rsd:
-            pos[mock_idx_this,2] += hosts['vz'][k]/100.0
+            pos[mock_idx_this,2] += hosts['vz'][has_mock]/100.0
 
     # sanity check
     if np.isnan(pos).any():
-        warnings.warn('Some galaxies in the mock catalog have not been assigned a new position. Maybe the corresponding halo is outside the bin range.', RuntimeWarning)
+        warnings.warn('Some galaxies in the mock catalog have not been ' \
+                'assigned a new position. Maybe the corresponding halo is ' \
+                'outside the bin range.', RuntimeWarning)
 
     # wrap box
     if box_size is not None:
