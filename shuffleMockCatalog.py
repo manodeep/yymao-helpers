@@ -28,6 +28,14 @@ def _random_rotation_matrix(n=3):
         return A
     return _random_rotation_matrix(n)
 
+def _apply_rotation(pos, box_size):
+    half_box_size = box_size * 0.5
+    pos = np.copy(pos)
+    pos[pos >  half_box_size] -= box_size
+    pos[pos < -half_box_size] += box_size
+    A = _random_rotation_matrix()
+    return np.dot(pos, A, pos)
+
 _axes = list('xyz')
 
 def _get_xyz(a, ax_type=float):
@@ -233,8 +241,8 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
                 k = choices.pop(np.random.randint(len(choices)))
                 pos[mock_idx_this] -= _get_xyz(hosts[j], ax_type)
                 if rotate_satellites:
-                    pos[mock_idx_this] = np.dot(pos[mock_idx_this], \
-                            _random_rotation_matrix())
+                    pos[mock_idx_this] = \
+                            _apply_rotation(pos[mock_idx_this], box_size)
                 pos[mock_idx_this] += _get_xyz(hosts[k], ax_type)
                 if apply_rsd:
                     pos[mock_idx_this,2] += (subs_this['vz'] \
@@ -243,8 +251,8 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
                 if rotate_satellites:
                     host_pos = _get_xyz(hosts[j], ax_type)
                     pos[mock_idx_this] -= host_pos
-                    pos[mock_idx_this] = np.dot(pos[mock_idx_this], \
-                            _random_rotation_matrix())
+                    pos[mock_idx_this] = \
+                            _apply_rotation(pos[mock_idx_this], box_size)
                     pos[mock_idx_this] += host_pos
                 if apply_rsd:
                     pos[mock_idx_this,2] += subs_this['vz']/100.0
