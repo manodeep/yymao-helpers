@@ -22,19 +22,14 @@ def _iter_indices_in_bins(bins, a):
         i = j
     yield s[i:]
 
-def _random_rotation_matrix(n=3):
-    A = np.linalg.qr(np.random.randn(n,n))[0]
-    if np.linalg.det(A) > 0:
-        return A
-    return _random_rotation_matrix(n)
-
 def _apply_rotation(pos, box_size):
     half_box_size = box_size * 0.5
-    pos = np.copy(pos)
     pos[pos >  half_box_size] -= box_size
     pos[pos < -half_box_size] += box_size
-    A = _random_rotation_matrix()
-    return np.dot(pos, A, pos)
+    A = np.linalg.qr(np.random.randn(3,3))[0]
+    if np.linalg.det(A) < 0:
+        A *= -1
+    return np.dot(pos, A)
 
 _axes = list('xyz')
 
