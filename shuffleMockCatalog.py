@@ -26,10 +26,7 @@ def _apply_rotation(pos, box_size):
     half_box_size = box_size * 0.5
     pos[pos >  half_box_size] -= box_size
     pos[pos < -half_box_size] += box_size
-    A = np.linalg.qr(np.random.randn(3,3))[0]
-    if np.linalg.det(A) < 0:
-        A *= -1
-    return np.dot(pos, A)
+    return np.dot(pos, np.linalg.qr(np.random.randn(3,3))[0])
 
 _axes = list('xyz')
 
