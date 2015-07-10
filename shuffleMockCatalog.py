@@ -159,16 +159,17 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
     mock_idx = np.ones(len(halo_catalog), dtype=int)
     mock_idx *= -1
     mock_idx[idx] = np.arange(len(mock_ids))
-    del s, idx
+    del idx
     
     # separate hosts and subs
     host_flag = (halo_catalog['upid'] == -1)
-    hosts = rename_fields(halo_catalog[host_flag], {'upid':'mock_idx'})
-    hosts['mock_idx'] = mock_idx[host_flag]
     subs = rename_fields(halo_catalog[~host_flag], {'id':'mock_idx'})
     subs['mock_idx'] = mock_idx[~host_flag]
-    subs = subs[subs['mock_idx'] > -1]
-    del host_flag, mock_idx
+    subs = subs[subs['mock_idx'] > -1] # only need subs that are mocks 
+    host_flag = s[host_flag[s]] # this sorts `hosts` by `id`
+    hosts = rename_fields(halo_catalog[host_flag], {'upid':'mock_idx'})
+    hosts['mock_idx'] = mock_idx[host_flag]
+    del host_flag, mock_idx, s
 
     # group subhalos
     subs.sort(order='upid')
@@ -179,10 +180,10 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
         raise ValueError('Some subhalos associdated with the mock galaxies ' \
                 'have no parent halos in `halo_catalog`. Consider using ' \
                 '`generate_upid` to fix this.')
+    # for the following to work, `hosts` need to be sorted by `id`
     subs_idx = np.zeros(len(hosts), dtype=idx.dtype)
-    in_flag = np.where(np.in1d(hosts['id'], host_ids, True))[0]
-    subs_idx[in_flag[hosts['id'][in_flag].argsort()]] = idx
-    del idx, host_ids, in_flag
+    subs_idx[np.in1d(hosts['id'], host_ids, True)] = idx
+    del idx, host_ids
 
     # check bins
     try:
