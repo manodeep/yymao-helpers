@@ -5,22 +5,24 @@ import numpy as np
 from numpy.lib.recfunctions import rename_fields
 
 def _iter_plateau_in_sorted_array(a):
-    k = np.where(a[1:] != a[:-1])[0]
-    k += 1
-    i = 0
-    for j in k:
-        yield i, j
-        i = j
-    yield i, len(a)
+    if len(a):
+        k = np.where(a[1:] != a[:-1])[0]
+        k += 1
+        i = 0
+        for j in k:
+            yield i, j
+            i = j
+        yield i, len(a)
 
 def _iter_indices_in_bins(bins, a):
-    s = a.argsort()
-    k = np.searchsorted(a, bins, 'right', sorter=s)
-    i = 0
-    for j in k:
-        yield s[i:j]
-        i = j
-    yield s[i:]
+    if len(a) and len(bins):
+        s = a.argsort()
+        k = np.searchsorted(a, bins, 'right', sorter=s)
+        i = 0
+        for j in k:
+            yield s[i:j]
+            i = j
+        yield s[i:]
 
 def _apply_rotation(pos, box_size):
     half_box_size = box_size * 0.5
@@ -57,8 +59,12 @@ def generate_upid(pid, id, recursive=True):
     >>> halos['upid'] = generate_upid(halos['pid'], halos['id'])
     
     """
-    pid = np.asanyarray(pid)
-    id = np.asanyarray(id)
+    pid = np.ravel(pid)
+    id = np.ravel(id)
+    if len(id) != len(pid):
+        raise ValueError('`pid` and `id` must have the same length.')
+    if not len(pid):
+        raise ValueError('`pid` and `id` must not be empty.')
     s = pid.argsort()
     idx = np.fromiter(_iter_plateau_in_sorted_array(pid[s]), \
             np.dtype([('start', int), ('stop', int)]))
@@ -174,8 +180,9 @@ def shuffleMockCatalog(mock_ids, halo_catalog, bin_width=None, bins=None,
                 'have no parent halos in `halo_catalog`. Consider using ' \
                 '`generate_upid` to fix this.')
     subs_idx = np.zeros(len(hosts), dtype=idx.dtype)
-    subs_idx[np.in1d(hosts['id'], host_ids, True)] = idx
-    del idx, host_ids
+    in_flag = np.where(np.in1d(hosts['id'], host_ids, True))[0]
+    subs_idx[in_flag[hosts['id'][in_flag].argsort()]] = idx
+    del idx, host_ids, in_flag
 
     # check bins
     try:
