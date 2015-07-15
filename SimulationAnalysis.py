@@ -393,8 +393,7 @@ class SimulationAnalysis:
             np.save(npy_file, self._main_branches[tree_root_id])
         return self._main_branches[tree_root_id]
 
-    def load_halos(self, z=0, npy_file=None, use_rockstar=False, \
-            additional_fields=[]):
+    def _choose_hlists_or_olists(self, use_rockstar=False):
         if 'hlists' not in self._directories and \
                 'olists' not in self._directories:
             raise ValueError('You must set hlists_dir and/or rockstar_dir'\
@@ -402,15 +401,15 @@ class SimulationAnalysis:
         elif 'olists' not in self._directories:
             if use_rockstar:
                 print "Warning: ignore use_rockstar"
-            d = self._directories['hlists']
-            s = self._hlists
+            return self._directories['hlists'], self._hlists
         elif use_rockstar or 'hlists' not in self._directories:
-            d = self._directories['olists']
-            s = self._olists
+            return self._directories['olists'], self._olists
         else:
-            d = self._directories['hlists']
-            s = self._hlists
+            return self._directories['hlists'], self._hlists
 
+    def load_halos(self, z=0, npy_file=None, use_rockstar=False, \
+            additional_fields=[]):
+        d, s = self._choose_hlists_or_olists(use_rockstar)
         fn = d.get_filename(math.log10(z2a(z)))
         if npy_file is not None and os.path.isfile(npy_file):
             data = np.load(npy_file) 
@@ -420,6 +419,30 @@ class SimulationAnalysis:
         if npy_file is not None and not os.path.isfile(npy_file):
             np.save(npy_file, s[fn])
         return s[fn]
+
+    def del_tree(self, tree_root_id):
+        if tree_root_id in self._trees:
+            del self._trees[tree_root_id]
+
+    def del_main_branch(self, tree_root_id):
+        if tree_root_id in self._main_branches:
+            del self._main_branches[tree_root_id]
+
+    def del_halos(self, z, use_rockstar=False):
+        d, s = self._choose_hlists_or_olists(use_rockstar)
+        fn = d.get_filename(math.log10(z2a(z)))
+        if fn in s:
+            del s[fn]
+
+    def clear_trees(self):
+        self._trees = {}
+
+    def clear_main_branches(self):
+        self._main_branches = {}
+
+    def clear_halos(self):
+        self._olists = {}
+        self._hlists = {}
 
 class TargetHalo:
     def __init__(self, target, halos, box_size=-1):
