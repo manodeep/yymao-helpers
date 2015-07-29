@@ -1,9 +1,11 @@
 __all__ = ['getMainBranch', 'a2z', 'z2a', 'readHlist', 'SimulationAnalysis', \
-        'TargetHalo', 'getDistance']
+        'TargetHalo', 'getDistance', 'iter_grouped_subhalos_indices']
+
 import os
 import re
 import math
 import gzip
+from itertools import izip
 from urllib import urlretrieve
 from collections import deque
 import numpy as np
@@ -466,4 +468,17 @@ class TargetHalo:
 def getDistance(target, halos, box_size=-1):
     t = TargetHalo(target, halos, box_size)
     return t.dists
+
+
+def iter_grouped_subhalos_indices(host_ids, sub_pids):
+    s = sub_pids.argsort()
+    k = np.where(sub_pids[s[1:]] != sub_pids[s[:-1]])[0]
+    k += 1
+    k = np.vstack((np.insert(k, 0, 0), np.append(k, len(s)))).T
+    d = np.searchsorted(sub_pids[s[k[:,0]]], host_ids)
+    for j, host_id in izip(d, host_ids):
+        if j < len(s) and sub_pids[s[k[j,0]]] == host_id:
+            yield s[slice(*k[j])]
+        else:
+            yield np.array([], dtype=int)
 
