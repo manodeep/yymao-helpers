@@ -77,6 +77,7 @@ def getParticlesWithinSphere(center, radius, snapshot_prefix, \
     #load one header to get box_size and num_files
     header = readGadgetSnapshot('{0}.0'.format(snapshot_prefix))
     box_size = header.BoxSize
+    half_box_size = header.BoxSize * 0.5
     num_files = header.num_files
 
     #load edges file
@@ -121,7 +122,10 @@ def getParticlesWithinSphere(center, radius, snapshot_prefix, \
         if need_pos or need_vel:
             for i, ax in enumerate('xyz'):
                 vax = 'v'+ax
-                if need_pos: dx = s_pos[p,i] - center[i]
+                if need_pos:
+                    dx = s_pos[p,i] - center[i]
+                    dx[dx >  half_box_size] -= box_size
+                    dx[dx < -half_box_size] += box_size
                 if need_vel: dvx = s_vel[p,i] - vel_center[i]
                 if ax   in output_names: out[ax][npart:] = dx
                 if vax  in output_names: out[vax][npart:] = dvx
