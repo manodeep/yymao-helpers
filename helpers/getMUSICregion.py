@@ -21,10 +21,12 @@ def getMUSICregion(target_id, rvir_mult, hlist, snapshot_prefix, ic_prefix,\
     print 'ref_offset      =', _fmt(rec_cor/box_size)
     print 'ref_extent      =', _fmt(rec_len/box_size)
 
-if __name__ == '__main__':
-    from sys import argv 
+def main():
+    from sys import argv
     from json import load
     with open(argv[1], 'r') as fp:
         d = load(fp)
     getMUSICregion(**d)
 
+if __name__ == '__main__':
+    main()

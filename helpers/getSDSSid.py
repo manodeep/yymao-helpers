@@ -18,7 +18,7 @@ def getSDSSid(nsa_id):
         return error_msg
     return m.groups()[0]
 
-if __name__ == "__main__":
+def main():
     from argparse import ArgumentParser
 
     parser = ArgumentParser(description='Query SDSS website for object ID, given NSA ID.')
@@ -44,3 +44,5 @@ if __name__ == "__main__":
     for i in ids:
         print getSDSSid(i)
 
+if __name__ == "__main__":
+    main()

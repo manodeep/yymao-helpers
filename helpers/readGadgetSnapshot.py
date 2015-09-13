@@ -108,8 +108,10 @@ def readGadgetSnapshot(filename, read_pos=False, read_vel=False, read_id=False,\
     #
     return tuple(ret)
 
-if __name__ == '__main__':
+def main():
     from sys import argv
     for f in argv[1:]:
         h = readGadgetSnapshot(f, print_header=True)
 
+if __name__ == '__main__':
+    main()

@@ -88,7 +88,7 @@ def distributeMUSICBndryPart(fname_in, fname_out=None, long_ids=False, \
                     m[sl].tofile(fo)
                 s.tofile(fo)
 #
-if __name__ == "__main__":
+def main():
     from argparse import ArgumentParser
     parser = ArgumentParser()
     parser.add_argument('fname_in')
@@ -100,3 +100,5 @@ if __name__ == "__main__":
     distributeMUSICBndryPart(args.fname_in, args.fname_out, args.long_ids, \
             args.coarse_type, args.distribute.split(','))
 
+if __name__ == "__main__":
+    main()
