@@ -13,5 +13,5 @@ and many more other things!
 
 ## Installation
 
-    pip install git+git://bitbucket.org/yymao/helpers.git
+    pip install git+ssh://git@bitbucket.org/yymao/helpers.git
 
