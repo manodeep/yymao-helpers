@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='helpers',
-    version='0.1.0',
+    version='0.1.1',
     description='A collection of some useful, but not necessarily related, Python scripts that carry out or accelerate various tasks, most of which involve dark matter simulations.',
     url='https://bitbucket.org/yymao/helpers',
     author='Yao-Yuan Mao',

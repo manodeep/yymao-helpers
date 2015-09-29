@@ -117,7 +117,10 @@ class BaseDirectory:
         with open(fn, 'r') as f:
             l = '#'
             while l[0] == '#':
-                l = f.next()
+                try:
+                    l = f.next()
+                except StopIteration:
+                    return p.pack([])
             X = [p.parse_line(l)]
             for l in f:
                 X.append(p.parse_line(l))
@@ -215,7 +218,11 @@ class TreesDir(BaseDirectory):
                 with open(tree_file, 'r') as f:
                     l = '#'
                     while l[0] == '#':
-                        l = f.next()
+                        try:
+                            l = f.next()
+                        except StopIteration:
+                            raise ValueError("Cannot find this tree_root_id: %d."%(\
+                                    tree_root_id))
                     num_trees = int(l)
                     for l in f:
                         if l[0] == '#' and l.split()[-1] == tree_root_id_str:
@@ -274,7 +281,10 @@ def readHlist(hlist, fields=None, buffering=100000000):
         header = [re.sub('\(\d+\)$', '', s) for s in header]
         p = BaseParseFields(header, fields)
         while l[0] == '#':
-            l = f.next()
+            try:
+                l = f.next()
+            except StopIteration:
+                return p.pack([])
         X = [p.parse_line(l)]
         for l in f:
             X.append(p.parse_line(l))
@@ -316,12 +326,17 @@ def readHlistToSqlite3(db, table_name, hlist, fields=None, unique_id=True):
                 for name, fmt in zip(db_cols, p._formats)]))
         db_insert_stmt = 'insert or replace into %s values (%s)'%(table_name, \
                 ','.join(['?']*len(p._names)))
+        empty_file = False
         while l[0] == '#':
-            l = f.next()
+            try:
+                l = f.next()
+            except StopIteration:
+                empty_file = True
         db.execute(db_create_stmt)
-        db.execute(db_insert_stmt, p.parse_line(l))
-        for l in f:
+        if not empty_file:
             db.execute(db_insert_stmt, p.parse_line(l))
+            for l in f:
+                db.execute(db_insert_stmt, p.parse_line(l))
         db.commit()
     return db
 
