@@ -13,4 +13,4 @@ and many more other things!
 
 ## Installation
 
-    pip install pip install https://bitbucket.org/yymao/helpers/get/master.zip
+    pip install https://bitbucket.org/yymao/helpers/get/master.zip
