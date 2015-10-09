@@ -13,5 +13,4 @@ and many more other things!
 
 ## Installation
 
-    pip install git+ssh://git@bitbucket.org/yymao/helpers.git
-
+    pip install pip install https://bitbucket.org/yymao/helpers/get/master.zip
